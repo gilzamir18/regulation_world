@@ -140,8 +140,8 @@ If you use Homeostatic Environment in your work please cite it as follows:
 ```
 @misc{gilzamir2025homeoenv,
     author={Gilzamir Gomes},
-    title = {A Simple Multi-Resources Environment},
-    url = {gilzamir}
+    title = {HomeostaticEnv: A Multi-Resource Environment for Homeostatic Reinforcement Learning Experiments},
+    url = {https://gilzamir18.github.io/preprints/}
     year = {2025}
 }
 ```
