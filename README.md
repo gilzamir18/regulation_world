@@ -15,7 +15,7 @@ The action space is a continuous `Box`.
 * **Dynamics**: The environment applies a fixed **decay** to all variables at every step, and then adds the scaled action.
 
 
-*  (decay ratio): Fixed at `0.01`.
+*  (decay ratio): Starts at `0.01`. Can vary at each step according to `decay_std`.
 *  (action scaler): Fixed at `0.2`.
 
 
@@ -41,9 +41,9 @@ Let  be the sum of squared distances to the target (0.0) at step : .
 Penalizes the agent based on the total quadratic distance from the equilibrium point (0.0).
 
 
-### 2. `euclidian`
+### 2. `QD`
 
-Rewards the agent for reducing the total distance to the target compared to the previous step (potential-based reward).
+Rewards the agent for reducing the total quadratic distance to the target compared to the previous step (potential-based reward).
 
 ### 3. `operational_regimes`
 
@@ -64,12 +64,12 @@ $$R = \sum_{i=0}^{N} [u_i + (1-u_i)(1 - 3v_i)] \times \text{scale}$$
 
 When `reset()` is called:
 
-1. **State**: Each variable is initialized uniformly between .
+1. **State**: Each variable is initialized uniformly between `[-0.9, 0.9]`.
 2. **Survival Zone**: Fixed at `1.0`.
 3. **Target Values**: Fixed at `0.0`.
 4. **Safety Zone**:
 * If `random_safety_zone=False`: Fixed at `0.5`.
-* If `random_safety_zone=True`: Randomized uniformly between  per variable.
+* If `random_safety_zone=True`: Randomized uniformly between `[0.5, 0.9]` per variable.
 
 ## Episode End
 
@@ -88,10 +88,11 @@ Arguments to be passed to `gym.make` or the class constructor:
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | `num_vars` | `int` | `2` | The number of homeostatic variables to control. |
-| `rewarding` | `str` | `"default"` | The reward function to use (`"default"`, `"euclidian"`, `"operational_regimes"`, `"default"`). |
+| `rewarding` | `str` | `"default"` | The reward function to use (`"default"`, `"QD"`, `"operational_regimes"`). |
 | `reward_scale` | `float` | `1.0` | Scalar to multiply the calculated reward. |
 | `max_steps` | `int` | `1000` | Maximum steps per episode before truncation. |
 | `random_safety_zone` | `bool` | `False` | If `True`, the safety zone thresholds are randomized on reset. |
+| `decay_std` | `float` | `0.0` | Standard deviation for the normal distribution used to vary the `decay_ratio` at each step. If `0.0`, the decay is deterministic. |
 
 ## Usage Example
 
@@ -110,7 +111,7 @@ gym.register(
 env = gym.make(
     "HomeostaticEnv-v0", 
     num_vars=20, 
-    rewarding="euclidian", 
+    rewarding="QD", 
     reward_scale=0.1,
     random_safety_zone=True
 )

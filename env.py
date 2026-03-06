@@ -4,8 +4,9 @@ import gymnasium as gym
 import numpy as np
 
 class HomeostaticEnv(gym.Env):
-    def __init__(self, num_vars: int=2, rewarding: str = "default", reward_scale: float = 1.0, max_steps:int=1000, random_safety_zone=False, **kwargs):
+    def __init__(self, num_vars: int=2, rewarding: str = "default", reward_scale: float = 1.0, max_steps:int=1000, random_safety_zone=False, decay_std: float = 0.0, **kwargs):
         self.num_vars = num_vars
+        self.decay_std = decay_std
         self.state = [0.0] * num_vars  # Initialize all variables to 0.0
         self.survival_zone = [0.0] * num_vars
         self.target_values = [0.0] * num_vars
@@ -62,6 +63,7 @@ class HomeostaticEnv(gym.Env):
         self.state = [ random.uniform(-0.9, 0.9) for _ in range(self.num_vars) ]
         self.survival_zone = [1.0] * self.num_vars
         self.target_values = [0.0] * self.num_vars
+        self.decay_ratio = [0.01] * self.num_vars
         if self.random_safety_zone:
             self.safety_zone = [random.uniform(0.5, 0.9) for _ in range(self.num_vars)]
         else:
@@ -71,8 +73,8 @@ class HomeostaticEnv(gym.Env):
         return self._get_obs(), self._get_info()
     
     def step(self, action):
-        if self.rewarding == "euclidian":
-            return self._euclidian_step(action)
+        if self.rewarding == "QD":
+            return self._qd_step(action)
         elif self.rewarding == "operational_regimes":
             return self._operationalregimes_step(action)
         else:
@@ -80,6 +82,8 @@ class HomeostaticEnv(gym.Env):
 
     def _env_dynamic(self, action):
         self.prev_state = self.state.copy()
+        if self.decay_std > 0.0:
+            self.decay_ratio = [dr + random.gauss(0.0, self.decay_std) for dr in self.decay_ratio]
         self.state = [ (self.state[i] - self.decay_ratio[i]) for i in range(self.num_vars) ] 
         self.state = [ self.state[i] + a * self.action_scaler for i, a in enumerate(action) ]
         self.step_count += 1
@@ -93,7 +97,7 @@ class HomeostaticEnv(gym.Env):
         reward = -distance * self.reward_scale
         return self._get_obs(), reward, done, ended, self._get_info()
     
-    def _euclidian_step(self, action):
+    def _qd_step(self, action):
         action = np.clip(action, 0, 1)
         done = self._env_dynamic(action)
         ended = self.step_count > self.max_steps
