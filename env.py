@@ -75,8 +75,14 @@ class HomeostaticEnv(gym.Env):
     def step(self, action):
         if self.rewarding == "QD":
             return self._qd_step(action)
-        elif self.rewarding == "operational_regimes":
+        elif self.rewarding == "operational_regimes" or self.rewarding == "OR_full":
             return self._operationalregimes_step(action)
+        elif self.rewarding == "OR_no_safety_zone":
+            return self._or_no_safety_zone_step(action)
+        elif self.rewarding == "OR_unbounded":
+            return self._or_unbounded_step(action)
+        elif self.rewarding == "OR_no_maintenance_reward":
+            return self._or_no_maintenance_reward_step(action)
         else:
             return self._default_step(action)
 
@@ -117,6 +123,60 @@ class HomeostaticEnv(gym.Env):
             u = (self.state[i] <= self.safety_zone[i])
             v = (dt_1 <= dt)
             reward += (u + (1 - u) * (1 - 3 * v))
+        return self._get_obs(), reward * self.reward_scale, done, ended, self._get_info()
+
+    def _or_no_safety_zone_step(self, action):
+        action = np.clip(action, 0, 1)
+        done = self._env_dynamic(action)
+        ended = self.step_count > self.max_steps
+        reward = 0.0
+        for i in range(self.num_vars):
+            dt = abs(self.state[i] - self.target_values[i])
+            dt_1 = abs(self.prev_state[i] - self.target_values[i])
+            v = (dt_1 <= dt) # True if worsened or stayed same
+            # No safety zone: 1 if improved, -2 if worsened
+            reward += (1 - 3 * v)
+        return self._get_obs(), reward * self.reward_scale, done, ended, self._get_info()
+
+    def _or_unbounded_step(self, action):
+        action = np.clip(action, 0, 1)
+        done = self._env_dynamic(action)
+        ended = self.step_count > self.max_steps
+        reward = 0.0
+        for i in range(self.num_vars):
+            dt = abs(self.state[i] - self.target_values[i])
+            dt_1 = abs(self.prev_state[i] - self.target_values[i])
+            u = (self.state[i] <= self.safety_zone[i])
+            v = (dt_1 <= dt)
+            
+            if u:
+                reward += 1.0
+            else:
+                # Magnitude scales with distance from safety zone
+                dist_from_safety = dt - self.safety_zone[i]
+                if not v: # improved
+                    reward += 1.0 * (1.0 + dist_from_safety)
+                else: # worsened
+                    reward += -2.0 * (1.0 + dist_from_safety)
+                    
+        return self._get_obs(), reward * self.reward_scale, done, ended, self._get_info()
+
+    def _or_no_maintenance_reward_step(self, action):
+        action = np.clip(action, 0, 1)
+        done = self._env_dynamic(action)
+        ended = self.step_count > self.max_steps
+        reward = 0.0
+        for i in range(self.num_vars):
+            dt = abs(self.state[i] - self.target_values[i])
+            dt_1 = abs(self.prev_state[i] - self.target_values[i])
+            u = (self.state[i] <= self.safety_zone[i])
+            v = (dt_1 <= dt)
+            
+            if not u:
+                # Outside safety zone: 1 if improved, -2 if worsened
+                reward += (1 - 3 * v)
+            # If inside safety zone, reward is 0 (u -> +0 instead of +1)
+            
         return self._get_obs(), reward * self.reward_scale, done, ended, self._get_info()
     
     def render(self):
